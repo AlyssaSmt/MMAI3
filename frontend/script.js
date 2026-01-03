@@ -1,36 +1,15 @@
-// ======================
-// Wörter (MÜSSEN Klassen des Modells sein!)
-// ======================
 const WORDS = [
-  "cat",
-  "cup",
-  "car",
-  "sun",
-  "eye",
-  "house",
-  "pants",
-  "tree",
-  "strawberry",
-  "wine glass"
+  "cat","cup","car","sun","eye","house",
+  "pants","tree","strawberry","wine glass"
 ];
 
-// ======================
-// Storage
-// ======================
 const STORAGE_KEY = "montagsmaler_correct_drawings";
 
-// ======================
-// DOM-Elemente
-// ======================
-const targetWordSpan = document.getElementById("target-word");
-
+// DOM
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-const clearBtn = document.getElementById("clear");
-const predictBtn = document.getElementById("predict");
-const saveBtn = document.getElementById("save-btn");
-
+const targetWordSpan = document.getElementById("target-word");
 const predictionSpan = document.getElementById("prediction");
 const confidenceSpan = document.getElementById("confidence");
 const topList = document.getElementById("top-list");
@@ -39,43 +18,29 @@ const captionText = document.getElementById("caption-text");
 const captionConf = document.getElementById("caption-conf");
 const captionTop = document.getElementById("caption-top");
 
+const saveBtn = document.getElementById("save-btn");
 const galleryDiv = document.getElementById("gallery");
 
 const penBtn = document.getElementById("pen-btn");
 const eraserBtn = document.getElementById("eraser-btn");
+const clearBtn = document.getElementById("clear");
+const predictBtn = document.getElementById("predict");
 
-// ======================
-// Zustand
-// ======================
 let targetWord = null;
 let drawing = false;
-let hasDrawn = false;
-
-let lastImageDataUrl = null;
+let mode = "pen";
+let lastImage = null;
 let lastConfidence = null;
-
-let lastCaptionText = null;
-let lastCaptionConfidence = null;
-
-let mode = "pen"; // "pen" | "eraser"
+let lastCaption = null;
+let lastCaptionConf = null;
 let lastPredictTime = 0;
+const LIVE_PREDICT_INTERVAL = 500; // ms
 
-// ======================
-// Canvas Setup
-// ======================
+
+// ===== Canvas =====
 ctx.lineCap = "round";
-resetCanvas();
+setPen();
 
-function resetCanvas() {
-  ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  setPen();
-}
-
-// ======================
-// Zeichenmodi
-// ======================
 function setPen() {
   mode = "pen";
   ctx.globalCompositeOperation = "source-over";
@@ -89,26 +54,17 @@ function setEraser() {
   ctx.lineWidth = 24;
 }
 
-// ======================
-// Zielwort
-// ======================
+penBtn.onclick = setPen;
+eraserBtn.onclick = setEraser;
+
+// ===== Wort =====
 function chooseNewWord() {
-  const i = Math.floor(Math.random() * WORDS.length);
-  targetWord = WORDS[i];
+  targetWord = WORDS[Math.floor(Math.random() * WORDS.length)];
   targetWordSpan.textContent = targetWord;
 }
-
-// ======================
-// Initialisierung
-// ======================
 chooseNewWord();
-loadGallery();
-saveBtn.style.display = "none";
-setPen();
 
-// ======================
-// Events
-// ======================
+// ===== Zeichnen =====
 canvas.addEventListener("mousedown", () => {
   drawing = true;
   ctx.beginPath();
@@ -117,291 +73,140 @@ canvas.addEventListener("mousedown", () => {
 canvas.addEventListener("mouseup", () => {
   drawing = false;
   ctx.beginPath();
-
-  if (mode === "pen" && hasDrawn) {
-    maybePredict();
-    hasDrawn = false;
-  }
 });
 
-canvas.addEventListener("mouseleave", () => {
-  drawing = false;
-});
-
-canvas.addEventListener("mousemove", draw);
-
-clearBtn.addEventListener("click", () => {
-  resetCanvas();
-
-  predictionSpan.textContent = "–";
-  confidenceSpan.textContent = "–";
-  topList.innerHTML = "";
-
-  captionText.textContent = "–";
-  captionConf.textContent = "–";
-  captionTop.innerHTML = "";
-
-  saveBtn.style.display = "none";
-
-  lastImageDataUrl = null;
-  lastConfidence = null;
-  lastCaptionText = null;
-  lastCaptionConfidence = null;
-  hasDrawn = false;
-
-  chooseNewWord();
-});
-
-predictBtn.addEventListener("click", maybePredict);
-penBtn.addEventListener("click", setPen);
-eraserBtn.addEventListener("click", setEraser);
-
-// ======================
-// Zeichnen
-// ======================
-function draw(e) {
+canvas.addEventListener("mousemove", e => {
   if (!drawing) return;
 
-  if (mode === "pen") hasDrawn = true;
-
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const r = canvas.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const y = e.clientY - r.top;
 
   ctx.lineTo(x, y);
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(x, y);
 
+  // 👉 LIVE-PREDICT (nur mit Stift, gedrosselt)
   const now = Date.now();
-  if (mode === "pen" && now - lastPredictTime > 400) {
+  if (
+    mode === "pen" &&
+    now - lastPredictTime > LIVE_PREDICT_INTERVAL
+  ) {
     lastPredictTime = now;
     maybePredict();
   }
-}
+});
 
-// ======================
-// Ink-Menge
-// ======================
-function getInkAmount() {
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  let count = 0;
+// ===== Clear =====
+clearBtn.onclick = () => {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  chooseNewWord();
+};
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const a = data[i + 3];
-
-    if (a > 200 && (r + g + b) < 600) count++;
-  }
-  return count;
-}
-
-// ======================
-// Snapshot mit weißem Hintergrund
-// ======================
-function snapshotCanvas() {
+// ===== Snapshot =====
+function snapshot() {
   const tmp = document.createElement("canvas");
   tmp.width = canvas.width;
   tmp.height = canvas.height;
-
-  const tctx = tmp.getContext("2d");
-  tctx.fillStyle = "white";
-  tctx.fillRect(0, 0, tmp.width, tmp.height);
-  tctx.drawImage(canvas, 0, 0);
-
+  const t = tmp.getContext("2d");
+  t.fillStyle = "white";
+  t.fillRect(0,0,tmp.width,tmp.height);
+  t.drawImage(canvas,0,0);
   return tmp.toDataURL("image/png");
 }
 
-// ======================
-// Caption (CLIP)
-// ======================
-async function fetchCaption(dataUrl) {
-  const formData = new FormData();
-  formData.append("image_base64", dataUrl);
+// ===== Predict =====
+predictBtn.onclick = maybePredict;
 
-  const response = await fetch("http://127.0.0.1:8001/caption", {
-    method: "POST",
-    body: formData
-  });
-
-  return await response.json();
-}
-
-// ======================
-// Prediction
-// ======================
 async function maybePredict() {
-  if (getInkAmount() < 50) {
-    predictionSpan.textContent = "noch zu wenig gezeichnet";
-    confidenceSpan.textContent = "";
-    topList.innerHTML = "";
+  const img = snapshot();
+  lastImage = img;
 
-    captionText.textContent = "–";
-    captionConf.textContent = "–";
-    captionTop.innerHTML = "";
-    return;
-  }
+  const fd = new FormData();
+  fd.append("image_base64", img);
 
-  const dataUrl = snapshotCanvas();
+  // CNN
+  const r1 = await fetch("http://127.0.0.1:8000/predict",{method:"POST",body:fd});
+  const cnn = await r1.json();
 
-  // -------- CNN --------
-  const formData = new FormData();
-  formData.append("image_base64", dataUrl);
+  predictionSpan.textContent = cnn.prediction;
+  confidenceSpan.textContent = Math.round(cnn.confidence*100)+"%";
 
-  const response = await fetch("http://127.0.0.1:8001/predict", {
-    method: "POST",
-    body: formData
-  });
-
-  const result = await response.json();
-  updateUI(result);
-
-  // -------- CLIP --------
-  try {
-    const captionResult = await fetchCaption(dataUrl);
-
-    captionText.textContent = captionResult.caption;
-    captionConf.textContent =
-      Math.round(captionResult.confidence * 100) + "%";
-
-    lastCaptionText = captionResult.caption;
-    lastCaptionConfidence = captionResult.confidence;
-
-    captionTop.innerHTML = "";
-    captionResult.top.forEach(item => {
-      const li = document.createElement("li");
-      li.textContent =
-        `${item.caption} (${Math.round(item.confidence * 100)}%)`;
-      captionTop.appendChild(li);
-    });
-
-  } catch (err) {
-    captionText.textContent = "Caption nicht verfügbar";
-    captionConf.textContent = "";
-    captionTop.innerHTML = "";
-    console.error(err);
-  }
-}
-
-// ======================
-// UI-Logik
-// ======================
-function updateUI(result) {
-  const conf = Number(result.confidence);
-  const prediction = result.prediction;
-
-  saveBtn.style.display = "none";
-  lastImageDataUrl = null;
-  lastConfidence = null;
-
-  let status = "";
-
-  if (
-    prediction === targetWord &&
-    conf >= 0.35 &&
-    lastCaptionText !== null &&
-    lastCaptionConfidence !== null
-  ) {
-    status = "✅ richtig!";
-    lastImageDataUrl = snapshotCanvas();
-    lastConfidence = conf;
-    saveBtn.style.display = "inline-block";
-  } else if (conf < 0.25) {
-    status = "unsicher";
-  } else {
-    status = "❌ falsch";
-  }
-
-  predictionSpan.textContent = `${prediction} ${status}`;
-  confidenceSpan.textContent = Math.round(conf * 100) + "%";
-
-  topList.innerHTML = "";
-  result.top.forEach(item => {
-    const li = document.createElement("li");
-    li.textContent =
-      `${item.label}: ${Math.round(item.confidence * 100)}%`;
+  topList.innerHTML="";
+  cnn.top.forEach(x=>{
+    const li=document.createElement("li");
+    li.textContent=`${x.label} (${Math.round(x.confidence*100)}%)`;
     topList.appendChild(li);
   });
+
+  // CLIP
+  const r2 = await fetch("http://127.0.0.1:8000/caption",{method:"POST",body:fd});
+  const clip = await r2.json();
+
+  captionText.textContent = clip.caption;
+  captionConf.textContent = Math.round(clip.confidence*100)+"%";
+
+  lastCaption = clip.caption;
+  lastCaptionConf = clip.confidence;
+  lastConfidence = cnn.confidence;
+
+  saveBtn.style.display = "inline-block";
 }
 
-// ======================
-// Speichern
-// ======================
-saveBtn.addEventListener("click", () => {
-  if (!lastImageDataUrl) return;
-
-  saveCorrectDrawing(
-    lastImageDataUrl,
-    targetWord,
-    lastConfidence,
-    lastCaptionText,
-    lastCaptionConfidence
-  );
-
-  saveBtn.style.display = "none";
-  lastImageDataUrl = null;
-  lastConfidence = null;
-  lastCaptionText = null;
-  lastCaptionConfidence = null;
-});
-
-// ======================
-// Galerie
-// ======================
-function saveCorrectDrawing(image, label, confidence, caption, captionConfidence) {
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-
+// ===== Speichern =====
+saveBtn.onclick = () => {
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
   const entry = {
-    image,
-    label,
-    confidence,
-    caption,
-    captionConfidence,
-    time: Date.now()
+    image:lastImage,
+    label:targetWord,
+    confidence:lastConfidence,
+    caption:lastCaption,
+    captionConfidence:lastCaptionConf,
+    time:Date.now()
+  };
+  data.push(entry);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+  addToGallery(entry);
+  saveBtn.style.display="none";
+};
+
+// ===== Galerie =====
+function addToGallery(e) {
+  const w=document.createElement("div");
+  w.className="gallery-item";
+
+  const img=document.createElement("img");
+  img.src=e.image;
+
+  const c1=document.createElement("div");
+  c1.className="gallery-caption";
+  c1.textContent=`CNN: ${e.label}`;
+
+  const c2=document.createElement("div");
+  c2.className="gallery-caption";
+  c2.textContent=`CLIP: ${e.caption}`;
+
+  const c3=document.createElement("div");
+  c3.className="gallery-confidence";
+  c3.textContent=`${Math.round(e.captionConfidence*100)}%`;
+
+  const overlay=document.createElement("div");
+  overlay.className="gallery-overlay";
+
+  const del=document.createElement("button");
+  del.textContent="×";
+  del.onclick=()=>{
+    w.remove();
+    const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")
+      .filter(x=>x.time!==e.time);
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(d));
   };
 
-  stored.push(entry);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  addImageToGallery(entry);
+  overlay.appendChild(del);
+  w.append(img,c1,c2,c3,overlay);
+  galleryDiv.appendChild(w);
 }
 
-function loadGallery() {
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  stored.forEach(addImageToGallery);
-}
-
-function addImageToGallery({ image, label, confidence, caption, captionConfidence, time }) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "gallery-item";
-
-  const img = document.createElement("img");
-  img.src = image;
-  img.title = `${label} – ${Math.round(confidence * 100)}%`;
-
-  const captionEl = document.createElement("div");
-  captionEl.className = "gallery-caption";
-  captionEl.textContent = caption || "–";
-
-  const captionConfEl = document.createElement("div");
-  captionConfEl.className = "gallery-confidence";
-  captionConfEl.textContent =
-    captionConfidence ? Math.round(captionConfidence * 100) + "%" : "";
-
-  const del = document.createElement("button");
-  del.textContent = "×";
-  del.onclick = () => {
-    deleteImage(time);
-    wrapper.remove();
-  };
-
-  wrapper.append(img, captionEl, captionConfEl, del);
-  galleryDiv.appendChild(wrapper);
-}
-
-function deleteImage(time) {
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-    .filter(e => e.time !== time);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-}
+// ===== Laden =====
+(JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")).forEach(addToGallery);
