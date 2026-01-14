@@ -1,5 +1,8 @@
 # MMAI
 
+Drittes Projekt, vergleich clip vs. quickdraw
+Clip anwendung mehr verzögert, als CNN
+
 bash:
 1. Virtuelle Umgebung erstellen:
     python -m venv .venv
