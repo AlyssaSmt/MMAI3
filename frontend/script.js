@@ -87,7 +87,7 @@ canvas.addEventListener("mousemove", e => {
   ctx.beginPath();
   ctx.moveTo(x, y);
 
-  // 👉 LIVE-PREDICT (nur mit Stift, gedrosselt)
+  //LIVE-PREDICT
   const now = Date.now();
   if (
     mode === "pen" &&
@@ -127,7 +127,7 @@ async function maybePredict() {
   fd.append("image_base64", img);
 
   // CNN
-  const r1 = await fetch("http://127.0.0.1:8000/predict",{method:"POST",body:fd});
+  const r1 = await fetch("http://127.0.0.1:8003/predict",{method:"POST",body:fd});
   const cnn = await r1.json();
 
   predictionSpan.textContent = cnn.prediction;
@@ -141,7 +141,7 @@ async function maybePredict() {
   });
 
   // CLIP
-  const r2 = await fetch("http://127.0.0.1:8000/caption",{method:"POST",body:fd});
+  const r2 = await fetch("http://127.0.0.1:8003/caption",{method:"POST",body:fd});
   const clip = await r2.json();
 
   captionText.textContent = clip.caption;

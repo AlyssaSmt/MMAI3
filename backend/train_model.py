@@ -48,7 +48,6 @@ def load_datasets():
     class_names = train_ds.class_names
     print("Klassen:", class_names)
 
-    # Normalisierung: exakt wie Canvas (0..1)
     normalization = layers.Rescaling(1.0 / 255)
 
     train_ds = train_ds.map(lambda x, y: (normalization(x), y))
@@ -78,7 +77,6 @@ def build_model(input_shape, num_classes):
         layers.Conv2D(128, 3, padding="same", activation="relu"),
         layers.MaxPooling2D(),
 
-        # ⚠️ KEIN GlobalAveragePooling (wichtig!)
         layers.Flatten(),
 
         layers.Dense(256, activation="relu"),

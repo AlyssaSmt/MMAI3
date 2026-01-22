@@ -1,65 +1,81 @@
-# MMAI
+# MMAI3 – Montagsmaler mit KI (CNN + CLIP, erweiterte Klassen)
 
-Drittes Projekt, vergleich clip vs. quickdraw
-Clip anwendung mehr verzögert, als CNN
+MMAI3 ist die dritte Version des Projekts *Montagsmaler mit KI* und baut direkt auf MMAI2 auf.  
+Wie in der vorherigen Version werden sowohl ein **selbst trainiertes CNN-Modell** als auch ein **CLIP-Modell** eingesetzt.
 
-bash:
-1. Virtuelle Umgebung erstellen:
-    python -m venv .venv
-2. .venv\Scripts\activate  (mac: source .venv/bin/activate)
+Der Fokus von MMAI3 liegt auf der **Erweiterung der verwendeten Klassen und Bildbeschreibungen** sowie auf der Untersuchung, wie sich eine größere Anzahl an möglichen Begriffen auf die Stabilität und Genauigkeit der Vorhersagen auswirkt.
 
-3. Abhängigkeiten installieren
-    pip install tensorflow fastapi uvicorn pillow numpy python-multipart
-    pip install scikit-learn
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-    pip install ftfy regex tqdm
-    pip install git+https://github.com/openai/CLIP.git
+---
+
+## Features
+
+- Zeichnen im Browser (HTML5 Canvas)
+- KI-Vorhersagen durch zwei Modelle:
+  - CNN (trainierte Klassen)
+  - CLIP (Text–Bild-Vergleich, Zero-Shot)
+- Anzeige von Konfidenzwerten
+- Top-1- und Top-3-Vorhersagen
+- Erweiterte CLIP-Bildbeschreibungen (größeres Vokabular)
+- Vergleich der Ergebnisse von CNN und CLIP
+- Speicherung der Zeichnungen inkl. Modellvorhersagen
+- Galerie mit gespeicherten Ergebnissen
+
+---
+
+## Verwendete Technologien
+
+- **TensorFlow / Keras** – Training des CNN
+- **FastAPI** – Backend und Modell-Inferenz
+- **Python** – Datenverarbeitung, Training und Backend-Logik
+- **HTML / CSS / JavaScript** – Frontend
+- **Google Quick, Draw! Dataset** – Trainingsdaten für das CNN
+- **OpenAI CLIP** – Zero-Shot Image–Text Matching
+- **PyTorch** – Ausführung des CLIP-Modells
+
+---
+
+## Quick Draw! NDJSON-Dateien hinzufügen
+
+Die **NDJSON-Dateien des Quick Draw!-Datensatzes müssen manuell heruntergeladen und eingefügt werden**, da sie aus Größengründen nicht im Repository enthalten sind.
+
+Lade die gewünschten Kategorien von:  
+https://github.com/googlecreativelab/quickdraw-dataset
+
+Die verwendeten Kategorien müssen mit den in `class_indices.json` definierten Klassen übereinstimmen.  
+Zusätzlich werden für CLIP erweiterte Bildbeschreibungen aus einer `captions.txt`-Datei genutzt.
 
 
-4. NDJSON → Bilder konvertieren
+## How to get started
+
+1. Virtuelle Umgebung erstellen und aktivieren
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate    # macOS / Linux
+```
+2. Abhängigkeiten installieren
+```bash
+    pip install -r requirements.txt
+```
+3. NDJSON → Bilder konvertieren
+```bash
     cd backend
     python convert_ndjson_to_png.py
-
-5. KI trainieren
+```
+4. KI trainieren
+```bash
     python train_model.py
-
-6. Backend starten (FastAPI)
-    cd backend
-    uvicorn main:app --reload --port 8001
-
+```
+5. Backend starten (FastAPI)
+```bash
+    uvicorn backend.main:app --reload --port 8003
+```
 Test (optional):
     Browser öffnen:
-    http://127.0.0.1:8001/docs
+    http://127.0.0.1:8003/docs
 
-7. Frontend starten
+6. Frontend starten
+```bash
     frontend/index.html
+```
 
-
-
-open vocabulary
-ganze clip library verwenden
-website verbessern, das es genauer/verständlicher ist
-
-
-
-
-
-
-
-
-
-
-
-
-Musste neu trainieren, weil es immer alles als string bean gesehen hat, hab dann string bean gelöscht
-
-ebenfalls falsche daten benutzt, die nicht nur das bild sondern auch viel freiraum hatten.
-
-
-Nicht alle Klassen sind für kleine CNNs geeignet.
-Klassen mit ähnlicher geometrischer Struktur
-führten zu systematischen Fehlklassifikationen.
-Durch gezielte Klassenselektion mit hoher visueller Varianz
-konnte das Modell stabilisiert werden
-
-sehr limitiert, da es immer nur das gleiche errät

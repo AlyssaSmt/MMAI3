@@ -18,7 +18,6 @@ _text_tokens = clip.tokenize(CAPTIONS).to(_device)
 
 @torch.no_grad()
 def caption_from_base64(image_base64: str, top_k: int = 3):
-    # base64 cleanup (data:image/png;base64,...)
     if "," in image_base64:
         image_base64 = image_base64.split(",")[1]
 
@@ -30,12 +29,11 @@ def caption_from_base64(image_base64: str, top_k: int = 3):
     image_features = _model.encode_image(image_input)
     text_features = _model.encode_text(_text_tokens)
 
-    # cosine similarity
     image_features = image_features / image_features.norm(dim=-1, keepdim=True)
     text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
-    sims = (image_features @ text_features.T).squeeze(0)  # (num_captions,)
-    probs = torch.softmax(sims * 100.0, dim=0)            # sharpened softmax
+    sims = (image_features @ text_features.T).squeeze(0)
+    probs = torch.softmax(sims * 100.0, dim=0)
 
     top_probs, top_idx = torch.topk(probs, k=min(top_k, len(CAPTIONS)))
     results = [
